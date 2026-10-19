@@ -19,9 +19,16 @@ const KEY_TARGET = 3;
 
 export class GameScene extends Phaser.Scene {
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
+  private wasdKeys!: {
+    up: Phaser.Input.Keyboard.Key;
+    down: Phaser.Input.Keyboard.Key;
+    left: Phaser.Input.Keyboard.Key;
+    right: Phaser.Input.Keyboard.Key;
+  };
   private enterKey!: Phaser.Input.Keyboard.Key;
   private escapeKey!: Phaser.Input.Keyboard.Key;
   private player!: Phaser.GameObjects.Arc;
+  private mazeGraphics!: Phaser.GameObjects.Graphics;
   private chests!: ChestData[];
   private chestGraphics!: Phaser.GameObjects.Graphics;
   private mazeWalls!: Phaser.Geom.Rectangle[];
@@ -32,6 +39,8 @@ export class GameScene extends Phaser.Scene {
   private keyCount = 0;
   private remainingTime = TIME_LIMIT_SECONDS;
   private gameTimer!: Phaser.Time.TimerEvent;
+  private playerWorldX = 0;
+  private playerWorldY = 0;
   private isPaused = false;
   private isEnding = false;
   private state = GameState.Playing;
@@ -63,12 +72,12 @@ export class GameScene extends Phaser.Scene {
     this.mazeWalls = maze.walls.map(
       (wall) => new Phaser.Geom.Rectangle(wall.x, wall.y, wall.width, wall.height),
     );
-    const mazeGraphics = this.add.graphics();
-    mazeGraphics.fillStyle(0x0d1720, 1);
-    mazeGraphics.lineStyle(2, 0x526b7b, 1);
+    this.mazeGraphics = this.add.graphics();
+    this.mazeGraphics.fillStyle(0x0d1720, 1);
+    this.mazeGraphics.lineStyle(2, 0x526b7b, 1);
     for (const wall of this.mazeWalls) {
-      mazeGraphics.fillRect(wall.x, wall.y, wall.width, wall.height);
-      mazeGraphics.strokeRect(wall.x, wall.y, wall.width, wall.height);
+      this.mazeGraphics.fillRect(wall.x, wall.y, wall.width, wall.height);
+      this.mazeGraphics.strokeRect(wall.x, wall.y, wall.width, wall.height);
     }
 
     this.add.text(32, 24, 'ESCAPE ROOM', {
@@ -88,6 +97,12 @@ export class GameScene extends Phaser.Scene {
     });
 
     this.cursors = this.input.keyboard!.createCursorKeys();
+    this.wasdKeys = {
+      up: this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.W),
+      down: this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.S),
+      left: this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.A),
+      right: this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.D),
+    };
     this.enterKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER);
     this.escapeKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
     this.gameTimer = this.time.addEvent({
@@ -102,8 +117,13 @@ export class GameScene extends Phaser.Scene {
     this.redrawChests();
 
     const startPosition = maze.start;
-    this.player = this.add.circle(startPosition.x, startPosition.y, PLAYER_RADIUS, 0x58c4b8);
+    this.playerWorldX = startPosition.x;
+    this.playerWorldY = startPosition.y;
+    const playerScreenX = ROOM_X + ROOM_WIDTH / 2;
+    const playerScreenY = ROOM_Y + ROOM_HEIGHT / 2;
+    this.player = this.add.circle(playerScreenX, playerScreenY, PLAYER_RADIUS, 0x58c4b8);
     this.player.setStrokeStyle(3, 0xd8fff4);
+    this.updateWorldPosition(playerScreenX, playerScreenY);
 
     this.add.text(700, 18, '鍵を探そう', {
       fontFamily: 'sans-serif',
@@ -147,13 +167,25 @@ export class GameScene extends Phaser.Scene {
     if (this.cursors.left.isDown) {
       directionX -= 1;
     }
+    if (this.wasdKeys.left.isDown) {
+      directionX -= 1;
+    }
     if (this.cursors.right.isDown) {
+      directionX += 1;
+    }
+    if (this.wasdKeys.right.isDown) {
       directionX += 1;
     }
     if (this.cursors.up.isDown) {
       directionY -= 1;
     }
+    if (this.wasdKeys.up.isDown) {
+      directionY -= 1;
+    }
     if (this.cursors.down.isDown) {
+      directionY += 1;
+    }
+    if (this.wasdKeys.down.isDown) {
       directionY += 1;
     }
 
@@ -165,22 +197,23 @@ export class GameScene extends Phaser.Scene {
     const maximumY = ROOM_Y + ROOM_HEIGHT - PLAYER_RADIUS;
 
     const nextX = Phaser.Math.Clamp(
-      this.player.x + directionX * distance,
+      this.playerWorldX + directionX * distance,
       minimumX,
       maximumX,
     );
-    if (this.canOccupy(nextX, this.player.y)) {
-      this.player.x = nextX;
+    if (this.canOccupy(nextX, this.playerWorldY)) {
+      this.playerWorldX = nextX;
     }
 
     const nextY = Phaser.Math.Clamp(
-      this.player.y + directionY * distance,
+      this.playerWorldY + directionY * distance,
       minimumY,
       maximumY,
     );
-    if (this.canOccupy(this.player.x, nextY)) {
-      this.player.y = nextY;
+    if (this.canOccupy(this.playerWorldX, nextY)) {
+      this.playerWorldY = nextY;
     }
+    this.updateWorldPosition(this.player.x, this.player.y);
 
     const nearbyChest = this.findNearbyChest();
     this.interactionText.setText(nearbyChest ? 'Enterキーで開ける' : '');
@@ -224,8 +257,8 @@ export class GameScene extends Phaser.Scene {
       }
 
       const distance = Phaser.Math.Distance.Between(
-        this.player.x,
-        this.player.y,
+        this.playerWorldX,
+        this.playerWorldY,
         chest.x,
         chest.y,
       );
@@ -237,6 +270,17 @@ export class GameScene extends Phaser.Scene {
     const playerCircle = new Phaser.Geom.Circle(x, y, PLAYER_RADIUS);
     return this.mazeWalls.every(
       (wall) => !Phaser.Geom.Intersects.CircleToRectangle(playerCircle, wall),
+    );
+  }
+
+  private updateWorldPosition(playerScreenX: number, playerScreenY: number): void {
+    this.mazeGraphics.setPosition(
+      playerScreenX - this.playerWorldX,
+      playerScreenY - this.playerWorldY,
+    );
+    this.chestGraphics.setPosition(
+      playerScreenX - this.playerWorldX,
+      playerScreenY - this.playerWorldY,
     );
   }
 
