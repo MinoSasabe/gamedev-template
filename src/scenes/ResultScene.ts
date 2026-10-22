@@ -4,11 +4,17 @@ import { GameEvent, GameState, transitionGameState } from '../game/GameState';
 interface ResultData {
   state: GameState;
   keyCount: number;
+  pCount: number;
+  remainingTime: number;
+  reason?: 'timeout' | 'defeated' | 'clear';
 }
 
 export class ResultScene extends Phaser.Scene {
   private state!: GameState;
   private keyCount = 0;
+  private pCount = 0;
+  private remainingTime = 0;
+  private reason: ResultData['reason'] = 'timeout';
 
   constructor() {
     super('ResultScene');
@@ -17,12 +23,17 @@ export class ResultScene extends Phaser.Scene {
   init(data: ResultData): void {
     this.state = data.state;
     this.keyCount = data.keyCount;
+    this.pCount = data.pCount;
+    this.remainingTime = data.remainingTime;
+    this.reason = data.reason ?? 'timeout';
   }
 
   create(): void {
     const isClear = this.state === GameState.Clear;
     const title = isClear ? 'クリア！' : 'ゲームオーバー';
-    const detail = isClear ? `集めた鍵：${this.keyCount}個` : '時間切れです';
+    const detail = isClear
+      ? `集めた鍵：${this.keyCount}個　／　P：${this.pCount}\n残り時間：${this.remainingTime.toFixed(3)}秒`
+      : `${this.reason === 'defeated' ? '敵に倒されました' : '時間切れです'}　／　P：${this.pCount}\n残り時間：${this.remainingTime.toFixed(3)}秒`;
     const accentColor = isClear ? 0x58c4b8 : 0xe8876b;
 
     this.cameras.main.setBackgroundColor('#101722');

@@ -9,8 +9,10 @@ export enum GameState {
 export enum GameEvent {
   EnterPressed = 'enter-pressed',
   EscapePressed = 'escape-pressed',
+  ReturnToTitlePressed = 'return-to-title-pressed',
   TimerExpired = 'timer-expired',
-  AllKeysCollected = 'all-keys-collected',
+  PlayerDefeated = 'player-defeated',
+  ExitDoorCrossed = 'exit-door-crossed',
 }
 
 export function transitionGameState(
@@ -28,13 +30,20 @@ export function transitionGameState(
     if (event === GameEvent.TimerExpired) {
       return GameState.GameOver;
     }
-    if (event === GameEvent.AllKeysCollected) {
+    if (event === GameEvent.PlayerDefeated) {
+      return GameState.GameOver;
+    }
+    if (event === GameEvent.ExitDoorCrossed) {
       return GameState.Clear;
     }
   }
 
   if (state === GameState.Paused && event === GameEvent.EscapePressed) {
     return GameState.Playing;
+  }
+
+  if (state === GameState.Paused && event === GameEvent.ReturnToTitlePressed) {
+    return GameState.Title;
   }
 
   if (state === GameState.GameOver && event === GameEvent.EnterPressed) {
