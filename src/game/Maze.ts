@@ -189,32 +189,42 @@ export function createMaze(seed: number): MazeData {
   const exitWallIndex = Math.floor(random() * 4);
   const exitWall = walls.splice(exitWallIndex, 1)[0];
   const isVertical = exitWall.width < exitWall.height;
+  const exitCell = isVertical
+    ? cells[1 + Math.floor(random() * (MAZE_ROWS - 2))][0]
+    : cells[0][1 + Math.floor(random() * (MAZE_COLUMNS - 2))];
   const exitDoor: MazeExitDoor = {
-    x: exitWall.x + exitWall.width / 2,
-    y: exitWall.y + exitWall.height / 2,
+    x: isVertical ? exitWall.x + exitWall.width / 2 : exitCell.x,
+    y: isVertical ? exitCell.y : exitWall.y + exitWall.height / 2,
     isVertical,
   };
-  const remainingWallLength = (isVertical ? exitWall.height : exitWall.width)
-    - MAZE_CORRIDOR_WIDTH;
-  const segmentLength = remainingWallLength / 2;
   if (isVertical) {
-    walls.push(
-      { ...exitWall, height: segmentLength },
-      {
+    const beforeDoor = exitDoor.y - MAZE_CORRIDOR_WIDTH / 2 - exitWall.y;
+    const afterDoor = exitWall.y + exitWall.height
+      - (exitDoor.y + MAZE_CORRIDOR_WIDTH / 2);
+    if (beforeDoor > 0) {
+      walls.push({ ...exitWall, height: beforeDoor });
+    }
+    if (afterDoor > 0) {
+      walls.push({
         ...exitWall,
         y: exitDoor.y + MAZE_CORRIDOR_WIDTH / 2,
-        height: segmentLength,
-      },
-    );
+        height: afterDoor,
+      });
+    }
   } else {
-    walls.push(
-      { ...exitWall, width: segmentLength },
-      {
+    const beforeDoor = exitDoor.x - MAZE_CORRIDOR_WIDTH / 2 - exitWall.x;
+    const afterDoor = exitWall.x + exitWall.width
+      - (exitDoor.x + MAZE_CORRIDOR_WIDTH / 2);
+    if (beforeDoor > 0) {
+      walls.push({ ...exitWall, width: beforeDoor });
+    }
+    if (afterDoor > 0) {
+      walls.push({
         ...exitWall,
         x: exitDoor.x + MAZE_CORRIDOR_WIDTH / 2,
-        width: segmentLength,
-      },
-    );
+        width: afterDoor,
+      });
+    }
   }
 
   return {

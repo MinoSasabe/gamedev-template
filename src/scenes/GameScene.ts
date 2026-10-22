@@ -358,6 +358,14 @@ export class GameScene extends Phaser.Scene {
       this.passages.add(passageKey(passage.from, passage.to));
     }
     this.createEnemies();
+    const roomFrame = this.add.graphics().setDepth(9);
+    roomFrame.fillStyle(0x101722, 1);
+    roomFrame.fillRect(0, 0, GAME_WIDTH, ROOM_Y);
+    roomFrame.fillRect(0, ROOM_Y + ROOM_HEIGHT, GAME_WIDTH, GAME_HEIGHT - ROOM_Y - ROOM_HEIGHT);
+    roomFrame.fillRect(0, ROOM_Y, ROOM_X, ROOM_HEIGHT);
+    roomFrame.fillRect(ROOM_X + ROOM_WIDTH, ROOM_Y, GAME_WIDTH - ROOM_X - ROOM_WIDTH, ROOM_HEIGHT);
+    roomFrame.lineStyle(4, 0x7f9bb3, 1);
+    roomFrame.strokeRect(ROOM_X, ROOM_Y, ROOM_WIDTH, ROOM_HEIGHT);
     this.updateWorldPosition(playerScreenX, playerScreenY);
     this.refreshVision();
     this.redrawChests();
@@ -960,34 +968,56 @@ export class GameScene extends Phaser.Scene {
     const startCell = this.nearestCell(enemy.x, enemy.y);
     const goalCell = this.nearestCell(this.playerWorldX, this.playerWorldY);
     const nextCell = this.nextCellOnPath(startCell, goalCell);
-    let targetX = this.playerWorldX;
-    let targetY = this.playerWorldY;
     if (cellKey(startCell) !== cellKey(goalCell)) {
       if (!nextCell) {
         return;
       }
-      targetX = nextCell.x;
-      targetY = nextCell.y;
+
+      const movingHorizontally = startCell.row === nextCell.row;
+      const crossTrackOffset = movingHorizontally
+        ? startCell.y - enemy.y
+        : startCell.x - enemy.x;
+      if (Math.abs(crossTrackOffset) > 1) {
+        this.moveEnemyAlongAxis(
+          enemy,
+          movingHorizontally ? 0 : crossTrackOffset,
+          movingHorizontally ? crossTrackOffset : 0,
+          delta,
+        );
+        return;
+      }
+
+      this.moveEnemyAlongAxis(
+        enemy,
+        movingHorizontally ? nextCell.x - enemy.x : 0,
+        movingHorizontally ? 0 : nextCell.y - enemy.y,
+        delta,
+      );
+      return;
     }
-    const angle = Phaser.Math.Angle.Between(enemy.x, enemy.y, targetX, targetY);
+
+    const differenceX = this.playerWorldX - enemy.x;
+    const differenceY = this.playerWorldY - enemy.y;
+    if (Math.abs(differenceX) > 1) {
+      this.moveEnemyAlongAxis(enemy, differenceX, 0, delta);
+    } else if (Math.abs(differenceY) > 1) {
+      this.moveEnemyAlongAxis(enemy, 0, differenceY, delta);
+    }
+  }
+
+  private moveEnemyAlongAxis(
+    enemy: EnemyData,
+    differenceX: number,
+    differenceY: number,
+    delta: number,
+  ): void {
     const distance = Math.min(
       ENEMY_SPEED * this.settings.enemySpeed * delta / 1000,
-      Phaser.Math.Distance.Between(
-        enemy.x,
-        enemy.y,
-        targetX,
-        targetY,
-      ),
+      Math.hypot(differenceX, differenceY),
     );
-    const nextX = enemy.x + Math.cos(angle) * distance;
-    const nextY = enemy.y + Math.sin(angle) * distance;
-    const intersectsEnemy = this.enemies.some((other) => (
-      other !== enemy
-      && !other.isDead
-      && Phaser.Math.Distance.Between(nextX, nextY, other.x, other.y)
-        < ENEMY_RADIUS * 2
-    ));
-    if (!intersectsEnemy && this.canOccupy(nextX, nextY, ENEMY_RADIUS)) {
+    const nextX = enemy.x + Math.sign(differenceX) * distance;
+    const nextY = enemy.y + Math.sign(differenceY) * distance;
+    if (this.canOccupy(nextX, nextY, ENEMY_RADIUS)) {
       enemy.x = nextX;
       enemy.y = nextY;
     }
