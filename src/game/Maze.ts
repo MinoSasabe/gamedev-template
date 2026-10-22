@@ -20,22 +20,13 @@ export interface MazeData {
 
 const ROOM_X = 48;
 const ROOM_Y = 112;
-const ROOM_WIDTH = 1184;
-const ROOM_HEIGHT = 560;
+const ROOM_WIDTH = 1184 * 1.5;
+const ROOM_HEIGHT = 560 * 1.5;
 const MAZE_COLUMNS = 21;
 const MAZE_ROWS = 9;
 const WALL_THICKNESS = 15;
-
-function cellCenter(row: number, column: number): MazeCellCenter {
-  const cellWidth = ROOM_WIDTH / MAZE_COLUMNS;
-  const cellHeight = ROOM_HEIGHT / MAZE_ROWS;
-  return {
-    x: ROOM_X + (column + 0.5) * cellWidth,
-    y: ROOM_Y + (row + 0.5) * cellHeight,
-    row,
-    column,
-  };
-}
+const START_ROW = 1;
+const START_COLUMN = 1;
 
 function shuffle<T>(items: T[]): T[] {
   for (let index = items.length - 1; index > 0; index -= 1) {
@@ -45,12 +36,21 @@ function shuffle<T>(items: T[]): T[] {
   return items;
 }
 
-export function createMaze(): MazeData {
+function countWalkableNeighbors(grid: boolean[][], row: number, column: number): number {
+  return [
+    [-1, 0],
+    [1, 0],
+    [0, -1],
+    [0, 1],
+  ].reduce((count, [rowOffset, columnOffset]) => {
+    return count + (grid[row + rowOffset]?.[column + columnOffset] === false ? 1 : 0);
+  }, 0);
+}
+
+function createMazeGrid(): boolean[][] {
   const grid = Array.from({ length: MAZE_ROWS }, () =>
     Array.from({ length: MAZE_COLUMNS }, () => true),
   );
-  const startRow = 1;
-  const startColumn = 1;
   const visit = (row: number, column: number): void => {
     grid[row][column] = false;
     const directions = shuffle([
@@ -77,7 +77,90 @@ export function createMaze(): MazeData {
       visit(nextRow, nextColumn);
     }
   };
-  visit(startRow, startColumn);
+  visit(START_ROW, START_COLUMN);
+
+  const possibleOpenings: [number, number][] = [];
+  for (let row = 1; row < MAZE_ROWS - 1; row += 1) {
+    for (let column = 1; column < MAZE_COLUMNS - 1; column += 1) {
+      if (grid[row][column] && countWalkableNeighbors(grid, row, column) >= 2) {
+        possibleOpenings.push([row, column]);
+      }
+    }
+  }
+
+  const openingCount = Math.floor(possibleOpenings.length * 0.18);
+  for (const [row, column] of shuffle(possibleOpenings).slice(0, openingCount)) {
+    grid[row][column] = false;
+  }
+  return grid;
+}
+
+function isValidGrid(grid: boolean[][]): boolean {
+  if (
+    grid.length !== MAZE_ROWS ||
+    grid.some((row) => row.length !== MAZE_COLUMNS) ||
+    grid[START_ROW][START_COLUMN]
+  ) {
+    return false;
+  }
+
+  const visited = new Set<string>();
+  const queue: [number, number][] = [[START_ROW, START_COLUMN]];
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current) {
+      continue;
+    }
+
+    const [row, column] = current;
+    const cellKey = `${row},${column}`;
+    if (visited.has(cellKey) || grid[row][column]) {
+      continue;
+    }
+    visited.add(cellKey);
+
+    for (const [rowOffset, columnOffset] of [
+      [-1, 0],
+      [1, 0],
+      [0, -1],
+      [0, 1],
+    ]) {
+      const nextRow = row + rowOffset;
+      const nextColumn = column + columnOffset;
+      if (
+        nextRow >= 0 &&
+        nextRow < MAZE_ROWS &&
+        nextColumn >= 0 &&
+        nextColumn < MAZE_COLUMNS
+      ) {
+        queue.push([nextRow, nextColumn]);
+      }
+    }
+  }
+
+  const walkableCellCount = grid.reduce(
+    (count, row) => count + row.filter((cell) => !cell).length,
+    0,
+  );
+  return visited.size === walkableCellCount;
+}
+
+function cellCenter(row: number, column: number): MazeCellCenter {
+  const cellWidth = ROOM_WIDTH / MAZE_COLUMNS;
+  const cellHeight = ROOM_HEIGHT / MAZE_ROWS;
+  return {
+    x: ROOM_X + (column + 0.5) * cellWidth,
+    y: ROOM_Y + (row + 0.5) * cellHeight,
+    row,
+    column,
+  };
+}
+
+export function createMaze(): MazeData {
+  const grid = createMazeGrid();
+  if (!isValidGrid(grid)) {
+    throw new Error('Invalid generated maze');
+  }
 
   const cellWidth = ROOM_WIDTH / MAZE_COLUMNS;
   const cellHeight = ROOM_HEIGHT / MAZE_ROWS;
@@ -130,6 +213,6 @@ export function createMaze(): MazeData {
   return {
     walls,
     walkableCells,
-    start: cellCenter(startRow, startColumn),
+    start: cellCenter(START_ROW, START_COLUMN),
   };
 }

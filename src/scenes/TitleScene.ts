@@ -32,7 +32,7 @@ export class TitleScene extends Phaser.Scene {
       stroke: '#101722',
       strokeThickness: 8,
     }).setOrigin(0.5);
-    this.add.text(640, 260, '鍵を集めて、迷路から脱出しよう', {
+    this.add.text(640, 260, '鍵を集めて、扉から脱出しよう', {
       fontFamily: 'sans-serif',
       fontSize: '20px',
       color: '#b7c9d8',
@@ -46,7 +46,7 @@ export class TitleScene extends Phaser.Scene {
     keyIcon.lineBetween(660, 330, 660, 344);
     keyIcon.lineBetween(672, 330, 672, 340);
 
-    this.add.text(640, 380, '迷路の中に鍵が3つ隠されています', {
+    this.add.text(640, 380, '迷路の中に鍵が5つ、脱出扉が1つあります', {
       fontFamily: 'sans-serif',
       fontSize: '24px',
       color: '#f5d58a',
@@ -68,13 +68,13 @@ export class TitleScene extends Phaser.Scene {
       ease: 'Sine.easeInOut',
     });
 
-    this.add.text(640, 488, '矢印キー：移動　　Enter：宝箱を開ける　　Esc：ポーズ', {
+    this.add.text(640, 488, '矢印キー：移動　　Enter：宝箱を開ける　　Space：攻撃　　Esc：ポーズ', {
       fontFamily: 'sans-serif',
       fontSize: '16px',
       color: '#b7c9d8',
     }).setOrigin(0.5);
 
-    this.add.text(640, 540, '制限時間：60秒　／　当たりの宝箱を3個見つける', {
+    this.add.text(640, 540, '制限時間：60秒　／　鍵を5個集めて扉から脱出', {
       fontFamily: 'sans-serif',
       fontSize: '16px',
       color: '#f5d58a',

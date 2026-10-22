@@ -4,11 +4,15 @@ import { GameEvent, GameState, transitionGameState } from '../game/GameState';
 interface ResultData {
   state: GameState;
   keyCount: number;
+  score: number;
+  gameOverReason?: 'timeout' | 'health';
 }
 
 export class ResultScene extends Phaser.Scene {
   private state!: GameState;
   private keyCount = 0;
+  private score = 0;
+  private gameOverReason: 'timeout' | 'health' = 'timeout';
 
   constructor() {
     super('ResultScene');
@@ -17,12 +21,18 @@ export class ResultScene extends Phaser.Scene {
   init(data: ResultData): void {
     this.state = data.state;
     this.keyCount = data.keyCount;
+    this.score = data.score;
+    this.gameOverReason = data.gameOverReason ?? 'timeout';
   }
 
   create(): void {
     const isClear = this.state === GameState.Clear;
     const title = isClear ? 'クリア！' : 'ゲームオーバー';
-    const detail = isClear ? `集めた鍵：${this.keyCount}個` : '時間切れです';
+    const detail = isClear
+      ? `集めた鍵：${this.keyCount}個`
+      : this.gameOverReason === 'health'
+        ? 'HPが0になりました'
+        : '時間切れです';
     const accentColor = isClear ? 0x58c4b8 : 0xe8876b;
 
     this.cameras.main.setBackgroundColor('#101722');
@@ -45,6 +55,11 @@ export class ResultScene extends Phaser.Scene {
       fontFamily: 'sans-serif',
       fontSize: '24px',
       color: '#f5f1e8',
+    }).setOrigin(0.5);
+    this.add.text(640, 390, `スコア：${this.score}点`, {
+      fontFamily: 'sans-serif',
+      fontSize: '24px',
+      color: '#f5d58a',
     }).setOrigin(0.5);
     this.add.text(640, 440, 'Enterキーでタイトルへ戻る', {
       fontFamily: 'sans-serif',

@@ -10,6 +10,7 @@ export enum GameEvent {
   EnterPressed = 'enter-pressed',
   EscapePressed = 'escape-pressed',
   TimerExpired = 'timer-expired',
+  PlayerDefeated = 'player-defeated',
   AllKeysCollected = 'all-keys-collected',
 }
 
@@ -26,6 +27,9 @@ export function transitionGameState(
       return GameState.Paused;
     }
     if (event === GameEvent.TimerExpired) {
+      return GameState.GameOver;
+    }
+    if (event === GameEvent.PlayerDefeated) {
       return GameState.GameOver;
     }
     if (event === GameEvent.AllKeysCollected) {
