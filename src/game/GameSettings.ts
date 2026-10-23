@@ -7,6 +7,7 @@ export interface GameSettings {
   enemyAttack: number;
   enemyHp: number;
   roundTimeSeconds: number;
+  elapsedTimeStartSeconds: number;
   timerEnabled: boolean;
 }
 
@@ -31,13 +32,23 @@ const DEFAULT_SETTINGS: GameSettings = {
   enemyAttack: 1,
   enemyHp: 1,
   roundTimeSeconds: 60,
+  elapsedTimeStartSeconds: 0,
   timerEnabled: true,
 };
 
 let settings: GameSettings = { ...DEFAULT_SETTINGS };
+let settingsModifiedByCommand = false;
 
 export function getGameSettings(): Readonly<GameSettings> {
   return settings;
+}
+
+export function areGameSettingsDefault(
+  current: Readonly<GameSettings> = settings,
+): boolean {
+  return !settingsModifiedByCommand && Object.keys(DEFAULT_SETTINGS).every((key) => (
+    current[key as keyof GameSettings] === DEFAULT_SETTINGS[key as keyof GameSettings]
+  ));
 }
 
 export function applySystemCommand(input: string): SystemCommandResult {
@@ -48,18 +59,22 @@ export function applySystemCommand(input: string): SystemCommandResult {
 
   if (tokens.length === 2 && (tokens[1] === 'default' || tokens[1] === 'def')) {
     settings = { ...DEFAULT_SETTINGS };
+    settingsModifiedByCommand = false;
     return 'applied';
   }
 
   if (tokens[1] === 'time' && tokens.length === 3) {
     if (tokens[2] === 'true' || tokens[2] === 'false') {
       settings.timerEnabled = tokens[2] === 'true';
+      settingsModifiedByCommand = true;
       return 'applied';
     }
 
     const seconds = Number(tokens[2]);
     if (Number.isFinite(seconds) && seconds > 0) {
       settings.roundTimeSeconds = seconds;
+      settings.elapsedTimeStartSeconds = seconds;
+      settingsModifiedByCommand = true;
       return 'applied';
     }
     return 'invalid';
@@ -120,5 +135,6 @@ export function applySystemCommand(input: string): SystemCommandResult {
   }
 
   settings[settingKey] = value;
+  settingsModifiedByCommand = true;
   return 'applied';
 }

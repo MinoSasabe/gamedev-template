@@ -4,11 +4,16 @@ import {
   LAST_SEED_STORAGE_KEY,
   seedFromInput,
 } from '../game/Maze';
-import { applySystemCommand } from '../game/GameSettings';
+import { applySystemCommand, getGameSettings } from '../game/GameSettings';
+import { getGameMode, setGameMode, type GameMode } from '../game/GameMode';
+
+const GAME_MODES: readonly GameMode[] = ['limited', 'elapsed'];
 
 export class TitleScene extends Phaser.Scene {
   private seedInput = '';
   private seedInputText!: Phaser.GameObjects.Text;
+  private modeButtons: Partial<Record<GameMode, Phaser.GameObjects.Text>> = {};
+  private modeDescriptionText?: Phaser.GameObjects.Text;
   private lastSeed = '';
   private seedInputFocused = false;
 
@@ -19,6 +24,7 @@ export class TitleScene extends Phaser.Scene {
   create(): void {
     this.seedInput = '';
     this.seedInputFocused = false;
+    this.modeButtons = {};
     const previousSeed = localStorage.getItem(LAST_SEED_STORAGE_KEY);
     this.lastSeed = previousSeed && /^\d+$/.test(previousSeed) ? previousSeed : '';
     this.cameras.main.setBackgroundColor('#101722');
@@ -29,6 +35,15 @@ export class TitleScene extends Phaser.Scene {
     background.fillStyle(0x172333, 1);
     background.fillRect(0, 0, 1280, 96);
     background.fillRect(0, 624, 1280, 96);
+
+    this.add.text(360, 48, 'ゲームモード', {
+      fontFamily: 'sans-serif',
+      fontSize: '18px',
+      color: '#b7c9d8',
+    }).setOrigin(0.5);
+    for (const mode of GAME_MODES) {
+      this.createModeButton(mode);
+    }
 
     this.drawMazeDecoration();
 
@@ -132,14 +147,61 @@ export class TitleScene extends Phaser.Scene {
       color: '#b7c9d8',
     }).setOrigin(0.5);
 
-    this.add.text(640, 598, 'HP：10　／　制限時間：60秒　／　鍵を3つ集めて扉から脱出', {
+    this.modeDescriptionText = this.add.text(640, 598, '', {
       fontFamily: 'sans-serif',
       fontSize: '15px',
       color: '#f5d58a',
     }).setOrigin(0.5);
+    this.updateModeDescription();
+
+    const rankingButton = this.add.text(640, 660, 'ランキング', {
+      fontFamily: 'sans-serif',
+      fontSize: '20px',
+      color: '#f5d58a',
+      backgroundColor: '#26384a',
+      padding: { x: 18, y: 8 },
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    rankingButton.on('pointerdown', () => this.scene.start('RankingScene'));
+    rankingButton.on('pointerover', () => rankingButton.setColor('#f5f1e8'));
+    rankingButton.on('pointerout', () => rankingButton.setColor('#f5d58a'));
 
     this.input.keyboard?.on('keydown', this.handleSeedInput, this);
     this.input.keyboard?.on('keydown-ENTER', this.startGame, this);
+  }
+
+  private createModeButton(mode: GameMode): void {
+    const label = mode === 'limited' ? '制限モード' : '経過モード';
+    const button = this.add.text(mode === 'limited' ? 520 : 700, 48, label, {
+      fontFamily: 'sans-serif',
+      fontSize: '18px',
+      color: getGameMode() === mode ? '#58c4b8' : '#b7c9d8',
+      backgroundColor: '#26384a',
+      padding: { x: 14, y: 7 },
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    button.on('pointerdown', () => {
+      setGameMode(mode);
+      this.refreshModeButtons();
+    });
+    this.modeButtons[mode] = button;
+  }
+
+  private refreshModeButtons(): void {
+    for (const mode of GAME_MODES) {
+      this.modeButtons[mode]?.setColor(
+        getGameMode() === mode ? '#58c4b8' : '#b7c9d8',
+      );
+    }
+    this.updateModeDescription();
+  }
+
+  private updateModeDescription(): void {
+    const settings = getGameSettings();
+    const modeDescription = getGameMode() === 'limited'
+      ? `制限時間：${settings.roundTimeSeconds}秒`
+      : `経過時間：${settings.elapsedTimeStartSeconds}秒から`;
+    this.modeDescriptionText?.setText(
+      `HP：10　／　${modeDescription}　／　鍵を3つ集めて扉から脱出`,
+    );
   }
 
   private drawMazeDecoration(): void {
@@ -203,12 +265,19 @@ export class TitleScene extends Phaser.Scene {
             ? '敵にエネルギーはありません'
             : 'コマンドを確認してください',
       );
+      if (commandResult === 'applied') {
+        this.updateModeDescription();
+      }
       return;
     }
 
     const seed = this.seedInput.trim() === ''
       ? createRandomSeed()
       : seedFromInput(this.seedInput);
-    this.scene.start('GameScene', { seed });
+    this.scene.start('GameScene', {
+      seed,
+      seedWasSet: this.seedInput.trim() !== '',
+      mode: getGameMode(),
+    });
   }
 }

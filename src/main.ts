@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { GameScene } from './scenes/GameScene';
 import { ResultScene } from './scenes/ResultScene';
+import { RankingScene } from './scenes/RankingScene';
 import { TitleScene } from './scenes/TitleScene';
 
 const config: Phaser.Types.Core.GameConfig = {
@@ -13,7 +14,7 @@ const config: Phaser.Types.Core.GameConfig = {
     width: 1280,
     height: 720,
   },
-  scene: [TitleScene, GameScene, ResultScene],
+  scene: [TitleScene, GameScene, ResultScene, RankingScene],
 };
 
 const game = new Phaser.Game(config);

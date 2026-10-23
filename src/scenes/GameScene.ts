@@ -1,7 +1,12 @@
 import Phaser from 'phaser';
 import { createInitialChests } from '../game/Chest';
 import { GameEvent, GameState, transitionGameState } from '../game/GameState';
-import { getGameSettings, type GameSettings } from '../game/GameSettings';
+import {
+  areGameSettingsDefault,
+  getGameSettings,
+  type GameSettings,
+} from '../game/GameSettings';
+import { type GameMode } from '../game/GameMode';
 import {
   createMaze,
   LAST_SEED_STORAGE_KEY,
@@ -58,6 +63,8 @@ const MINIMAP_HEADER_HEIGHT = 24;
 
 interface GameSceneData {
   seed: number;
+  seedWasSet: boolean;
+  mode: GameMode;
 }
 
 interface EnemyData {
@@ -160,6 +167,9 @@ export class GameScene extends Phaser.Scene {
   private keyCount = 0;
   private pCount = 0;
   private remainingTime = 0;
+  private elapsedTime = 0;
+  private mode: GameMode = 'limited';
+  private seedWasSet = false;
   private energy = 1;
   private hp = PLAYER_MAX_HP;
   private timeWithoutBoost = 0;
@@ -187,9 +197,12 @@ export class GameScene extends Phaser.Scene {
 
   init(data: GameSceneData): void {
     this.settings = getGameSettings();
+    this.mode = data.mode;
+    this.seedWasSet = data.seedWasSet;
     this.keyCount = 0;
     this.pCount = 0;
     this.remainingTime = this.settings.roundTimeSeconds;
+    this.elapsedTime = this.settings.elapsedTimeStartSeconds;
     this.energy = this.settings.playerEnergy;
     this.hp = PLAYER_MAX_HP * this.settings.playerHp;
     this.timeWithoutBoost = 0;
@@ -293,14 +306,14 @@ export class GameScene extends Phaser.Scene {
     this.timeText = this.add.text(
       1152,
       42,
-      this.remainingTime.toFixed(3),
+      (this.mode === 'limited' ? this.remainingTime : this.elapsedTime).toFixed(3),
       {
         fontFamily: 'sans-serif',
         fontSize: '22px',
         color: '#f5f1e8',
       },
     ).setOrigin(0.5).setDepth(10);
-    this.add.text(1152, 13, '残り時間', {
+    this.add.text(1152, 13, this.mode === 'limited' ? '残り時間' : '経過時間', {
       fontFamily: 'sans-serif',
       fontSize: '13px',
       color: '#b7c9d8',
@@ -428,18 +441,25 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    if (this.isEnding || this.remainingTime === 0) {
+    if (this.isEnding || (this.mode === 'limited' && this.remainingTime === 0)) {
       return;
     }
 
     if (this.settings.timerEnabled) {
-      this.remainingTime = Math.max(0, this.remainingTime - delta / 1000);
+      if (this.mode === 'limited') {
+        this.remainingTime = Math.max(0, this.remainingTime - delta / 1000);
+      } else {
+        this.elapsedTime += delta / 1000;
+      }
     }
-    this.timeText.setText(this.remainingTime.toFixed(3));
-    this.timeText.setColor(this.remainingTime <= 10 ? '#e8876b' : '#f5f1e8');
+    const displayedTime = this.mode === 'limited' ? this.remainingTime : this.elapsedTime;
+    this.timeText.setText(displayedTime.toFixed(3));
+    this.timeText.setColor(
+      this.mode === 'limited' && displayedTime <= 10 ? '#e8876b' : '#f5f1e8',
+    );
     this.hitFlashTime = Math.max(0, this.hitFlashTime - delta);
     this.damageOverlay.setAlpha(0.28 * (this.hitFlashTime / 260));
-    if (this.remainingTime === 0) {
+    if (this.mode === 'limited' && this.remainingTime === 0) {
       this.finishGame('timeout');
       return;
     }
@@ -602,6 +622,7 @@ export class GameScene extends Phaser.Scene {
       0xe8876b,
       24,
       12,
+      this.settings.playerHp,
     );
     this.drawBar(
       this.energyBarGraphics,
@@ -609,6 +630,7 @@ export class GameScene extends Phaser.Scene {
       0x58c4b8,
       54,
       12,
+      this.settings.playerEnergy,
     );
   }
 
@@ -618,19 +640,21 @@ export class GameScene extends Phaser.Scene {
     color: number,
     y: number,
     height: number,
+    widthScale: number,
   ): void {
+    const width = HUD_BAR_WIDTH * widthScale;
     graphics.clear();
     graphics.fillStyle(0x26384a, 1);
-    graphics.fillRect(HUD_BAR_X, y, HUD_BAR_WIDTH, height);
+    graphics.fillRect(HUD_BAR_X, y, width, height);
     graphics.fillStyle(color, 1);
     graphics.fillRect(
       HUD_BAR_X + 2,
       y + 2,
-      (HUD_BAR_WIDTH - 4) * Phaser.Math.Clamp(value, 0, 1),
+      (width - 4) * Phaser.Math.Clamp(value, 0, 1),
       height - 4,
     );
     graphics.lineStyle(1, 0x7f9bb3, 1);
-    graphics.strokeRect(HUD_BAR_X, y, HUD_BAR_WIDTH, height);
+    graphics.strokeRect(HUD_BAR_X, y, width, height);
   }
 
   private togglePause(): void {
@@ -661,6 +685,11 @@ export class GameScene extends Phaser.Scene {
       keyCount: this.keyCount,
       pCount: this.pCount,
       remainingTime: this.remainingTime,
+      mode: this.mode,
+      elapsedTime: this.elapsedTime,
+      clearTimeSeconds: this.getClearTimeSeconds(),
+      seedWasSet: this.seedWasSet,
+      rankingEligible: areGameSettingsDefault(this.settings),
       reason,
     });
   }
@@ -676,8 +705,19 @@ export class GameScene extends Phaser.Scene {
       keyCount: this.keyCount,
       pCount: this.pCount,
       remainingTime: this.remainingTime,
+      mode: this.mode,
+      elapsedTime: this.elapsedTime,
+      clearTimeSeconds: this.getClearTimeSeconds(),
+      seedWasSet: this.seedWasSet,
+      rankingEligible: areGameSettingsDefault(this.settings),
       reason: 'clear',
     });
+  }
+
+  private getClearTimeSeconds(): number {
+    return this.mode === 'elapsed'
+      ? this.elapsedTime
+      : this.settings.roundTimeSeconds - this.remainingTime;
   }
 
   private findNearbyChest(): ChestData | undefined {
@@ -1178,13 +1218,15 @@ export class GameScene extends Phaser.Scene {
     }
     enemy.hpBar.setVisible(visible).clear();
     if (visible) {
+      const barWidth = 36 * this.settings.enemyHp;
+      const barLeft = screenX - barWidth / 2;
       enemy.hpBar.fillStyle(0x26384a, 1);
-      enemy.hpBar.fillRect(screenX - 18, screenY - ENEMY_RADIUS - 12, 36, 5);
+      enemy.hpBar.fillRect(barLeft, screenY - ENEMY_RADIUS - 12, barWidth, 5);
       enemy.hpBar.fillStyle(0xe8876b, 1);
       enemy.hpBar.fillRect(
-        screenX - 17,
+        barLeft + 1,
         screenY - ENEMY_RADIUS - 11,
-        34 * (enemy.hp / (ENEMY_MAX_HP * this.settings.enemyHp)),
+        (barWidth - 2) * (enemy.hp / (ENEMY_MAX_HP * this.settings.enemyHp)),
         3,
       );
     }
